@@ -25,8 +25,26 @@
 
 (function(self){ // window or worker context.
 
+  function requestFileSystem(type, size, callback, errorCallback){
+    var reqFS = window.requestFileSystem || window.webkitRequestFileSystem;
+
+    if(typeof chrome === 'undefined'){
+      reqFS(type, size, callback, errorCallback);
+      return;
+    }
+
+    chrome.syncFileSystem.requestFileSystem(function(filesystem){
+      var err = chrome.runtime.lastError;
+      if(err || filesystem == null){
+        reqFS(type, size, callback, errorCallback);
+      } else {
+        callback(filesystem);
+      }
+    });
+  }
+
   self.URL = self.URL || self.webkitURL;
-  self.requestFileSystem = self.requestFileSystem || self.webkitRequestFileSystem;
+  self.requestFileSystem = requestFileSystem;
   self.resolveLocalFileSystemURL = self.resolveLocalFileSystemURL ||
                                    self.webkitResolveLocalFileSystemURL;
   navigator.temporaryStorage = navigator.temporaryStorage ||
