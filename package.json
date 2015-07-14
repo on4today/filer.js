@@ -1,5 +1,5 @@
 {
-  "name": "@iceddev/filer",
+  "name": "@phated/filer",
   "version": "0.0.0",
   "description": "HTML5 FileSystem API abstraction based on @ebidel's filer.js",
   "author": "Blaine Bublitz <blaine@iceddev.com> (http://iceddev.com)",
