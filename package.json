@@ -15,11 +15,17 @@
     "index.js"
   ],
   "scripts": {
-    "test": "eslint **/*.js"
+    "test": "eslint **/*.js",
+    "build": "webpack",
+    "prepublish": "npm run build"
   },
   "dependencies": {},
   "devDependencies": {
-    "eslint": "^0.23.0"
+    "eslint": "^0.23.0",
+    "exports-loader": "^0.6.2",
+    "imports-loader": "^0.6.4",
+    "node-libs-browser": "^0.5.2",
+    "webpack": "^1.10.1"
   },
   "keywords": []
 }
