@@ -1,6 +1,6 @@
 {
   "name": "@phated/filer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "HTML5 FileSystem API abstraction based on @ebidel's filer.js",
   "author": "Blaine Bublitz <blaine@iceddev.com> (http://iceddev.com)",
   "contributors": [],
