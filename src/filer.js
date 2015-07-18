@@ -562,9 +562,9 @@ var Filer = new function() {
 
     var createDir = function(rootDir, folders) {
       // Throw out './' or '/' and move on. Prevents: '/foo/.//bar'.
-      if (folders[0] == '.' || folders[0] == '') {
-        folders = folders.slice(1);
-      }
+      folders = folders.filter(function(chunk){
+        return chunk !== '.' && chunk !== '';
+      });
 
       if (!folders.length) {
         if (opt_successCallback) opt_successCallback(rootDir);
