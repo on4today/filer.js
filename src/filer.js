@@ -566,6 +566,11 @@ var Filer = new function() {
         folders = folders.slice(1);
       }
 
+      if (!folders.length) {
+        if (opt_successCallback) opt_successCallback(rootDir);
+        return;
+      }
+
       rootDir.getDirectory(folders[0], {create: true, exclusive: exclusive},
         function (dirEntry) {
           if (dirEntry.isDirectory) { // TODO: check shouldn't be necessary.
