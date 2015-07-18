@@ -594,11 +594,12 @@ var Filer = new function() {
         function(e) {
           if (e.code == FileError.INVALID_MODIFICATION_ERR) {
             e.message = "'" + path + "' already exists";
-            if (opt_errorHandler) {
-              opt_errorHandler(e);
-            } else {
-              throw e;
-            }
+          }
+
+          if (opt_errorHandler) {
+            opt_errorHandler(e);
+          } else {
+            throw e;
           }
         }
       );
