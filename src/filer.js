@@ -451,6 +451,11 @@ var Filer = new function() {
       });
     }
 
+    if (fs_) {
+      if (opt_successCallback) opt_successCallback(fs_);
+      return;
+    }
+
     var initObj = opt_initObj ? opt_initObj : {}; // Use defaults if obj is null.
 
     var size = initObj.size || DEFAULT_FS_SIZE;
