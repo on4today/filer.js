@@ -502,13 +502,11 @@ var Filer = new function() {
 
     var callback = function(dirEntry) {
 
-      cwd_ = dirEntry;
-
       // Read contents of current working directory. According to spec, need to
       // keep calling readEntries() until length of result array is 0. We're
       // guarenteed the same entry won't be returned again.
       var entries_ = [];
-      var reader = cwd_.createReader();
+      var reader = dirEntry.createReader();
 
       var readEntries = function() {
         reader.readEntries(function(results) {
