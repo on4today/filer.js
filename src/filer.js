@@ -561,8 +561,15 @@ var Filer = new function() {
       throw new Error(FS_INIT_ERROR_MSG);
     }
 
-    var exclusive = opt_exclusive != null ? opt_exclusive : false;
+    // juggle exclusive arg
+    if (typeof opt_exclusive === 'function'){
+      opt_errorCallback = opt_successCallback;
+      opt_successCallback = opt_exclusive;
+    }
 
+    var exclusive = typeof opt_exclusive === 'boolean' ? opt_exclusive : false;
+
+    var isAbsolute = path[0] === '/';
     var folderParts = path.split('/');
 
     var createDir = function(rootDir, folders) {
@@ -610,7 +617,11 @@ var Filer = new function() {
       );
     };
 
-    createDir(cwd_, folderParts);
+    if (isAbsolute) {
+      createDir(fs_.root, folderParts);
+    } else {
+      createDir(cwd_, folderParts);
+    }
   };
 
   /**
