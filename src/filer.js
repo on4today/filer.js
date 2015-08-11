@@ -563,7 +563,7 @@ var Filer = new function() {
 
     // juggle exclusive arg
     if (typeof opt_exclusive === 'function'){
-      opt_errorCallback = opt_successCallback;
+      opt_errorHandler = opt_successCallback;
       opt_successCallback = opt_exclusive;
     }
 
