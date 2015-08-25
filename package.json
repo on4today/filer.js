@@ -1,0 +1,31 @@
+{
+  "name": "@phated/filer",
+  "version": "0.2.5",
+  "description": "HTML5 FileSystem API abstraction based on @ebidel's filer.js",
+  "author": "Blaine Bublitz <blaine@iceddev.com> (http://iceddev.com)",
+  "contributors": [],
+  "repository": "iceddev/filer.js",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">= 0.10"
+  },
+  "main": "index.js",
+  "files": [
+    "LICENSE",
+    "index.js"
+  ],
+  "scripts": {
+    "test": "eslint **/*.js",
+    "build": "webpack",
+    "prepublish": "npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^0.23.0",
+    "exports-loader": "^0.6.2",
+    "imports-loader": "^0.6.4",
+    "node-libs-browser": "^0.5.2",
+    "webpack": "^1.10.1"
+  },
+  "keywords": []
+}

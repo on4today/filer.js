@@ -1,22 +1,22 @@
-/** 
+/**
  * Copyright 2013 - Eric Bidelman
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- 
+
  * @fileoverview
  * Convenient wrapper library for the HTML5 Filesystem API, implementing
  * familiar UNIX commands (cp, mv, ls) for its API.
- * 
+ *
  * @author Eric Bidelman (ebidel@gmail.com)
  * @version: 0.4.3
  */
@@ -25,8 +25,26 @@
 
 var self = this; // window or worker context.
 
+var reqFS = window.requestFileSystem || window.webkitRequestFileSystem;
+
+function requestFileSystem(type, size, callback, errorCallback){
+  if(typeof chrome === 'undefined' || typeof chrome.syncFileSystem === 'undefined'){
+    reqFS(type, size, callback, errorCallback);
+    return;
+  }
+
+  chrome.syncFileSystem.requestFileSystem(function(filesystem){
+    var err = chrome.runtime.lastError;
+    if(err || filesystem == null){
+      reqFS(type, size, callback, errorCallback);
+    } else {
+      callback(filesystem);
+    }
+  });
+}
+
 self.URL = self.URL || self.webkitURL;
-self.requestFileSystem = self.requestFileSystem || self.webkitRequestFileSystem;
+self.requestFileSystem = requestFileSystem;
 self.resolveLocalFileSystemURL = self.resolveLocalFileSystemURL ||
                                  self.webkitResolveLocalFileSystemURL;
 navigator.temporaryStorage = navigator.temporaryStorage ||
@@ -87,7 +105,7 @@ var Util = {
   strToObjectURL: function(binStr, opt_contentType) {
 
     var ui8a = new Uint8Array(binStr.length);
-    for (var i = 0; i < ui8a.length; ++i) { 
+    for (var i = 0; i < ui8a.length; ++i) {
       ui8a[i] = binStr.charCodeAt(i);
     }
 
@@ -292,12 +310,13 @@ var Filer = new function() {
    *     passed the entry/entries that were fetched. The ordering of the
    *     entries passed to the callback correspond to the same order passed
    *     to this method.
+   * @param {function(...Error)} errback A callback to be called when an error occurs.
    * @param {...string} var_args 1-2 paths to lookup and return entries for.
    *     These can be paths or filesystem: URLs.
    */
-  var getEntry_ = function(callback, var_args) {
-    var srcStr = arguments[1];
-    var destStr = arguments[2];
+  var getEntry_ = function(callback, errback, var_args) {
+    var srcStr = arguments[2];
+    var destStr = arguments[3];
 
     var onError = function(e) {
       if (e.code == FileError.NOT_FOUND_ERR) {
@@ -312,18 +331,24 @@ var Filer = new function() {
       }
     };
 
+    if(typeof errback !== 'function' && errback != null){
+      srcStr = arguments[1];
+      destStr = arguments[2];
+      errback = onError;
+    }
+
     // Build a filesystem: URL manually if we need to.
     var src = pathToFsURL_(srcStr);
 
-    if (arguments.length == 3) {
+    if (destStr) {
       var dest = pathToFsURL_(destStr);
       self.resolveLocalFileSystemURL(src, function(srcEntry) {
         self.resolveLocalFileSystemURL(dest, function(destEntry) {
           callback(srcEntry, destEntry);
-        }, onError);
-      }, onError);
+        }, errback);
+      }, errback);
     } else {
-      self.resolveLocalFileSystemURL(src, callback, onError);
+      self.resolveLocalFileSystemURL(src, callback, errback);
     }
   };
 
@@ -372,7 +397,7 @@ var Filer = new function() {
         } else {
           srcEntry.copyTo(destDir, newName, opt_successCallback, opt_errorHandler);
         }
-      }, src, dest);
+      }, opt_errorCallback, src, dest);
     }
   }
 
@@ -433,6 +458,11 @@ var Filer = new function() {
       });
     }
 
+    if (fs_) {
+      if (opt_successCallback) opt_successCallback(fs_);
+      return;
+    }
+
     var initObj = opt_initObj ? opt_initObj : {}; // Use defaults if obj is null.
 
     var size = initObj.size || DEFAULT_FS_SIZE;
@@ -451,7 +481,7 @@ var Filer = new function() {
     };
 
     if (this.type == self.PERSISTENT && !!navigator.persistentStorage) {
-      navigator.persistentStorage.requestQuota(size, function(grantedBytes) {  
+      navigator.persistentStorage.requestQuota(size, function(grantedBytes) {
         self.requestFileSystem(
             this.type, grantedBytes, init.bind(this), opt_errorHandler);
       }.bind(this), opt_errorHandler);
@@ -479,13 +509,11 @@ var Filer = new function() {
 
     var callback = function(dirEntry) {
 
-      cwd_ = dirEntry;
-
       // Read contents of current working directory. According to spec, need to
       // keep calling readEntries() until length of result array is 0. We're
       // guarenteed the same entry won't be returned again.
       var entries_ = [];
-      var reader = cwd_.createReader();
+      var reader = dirEntry.createReader();
 
       var readEntries = function() {
         reader.readEntries(function(results) {
@@ -508,7 +536,7 @@ var Filer = new function() {
     if (dirEntryOrPath.isDirectory) { // passed a DirectoryEntry.
       callback(dirEntryOrPath);
     } else if (isFsURL_(dirEntryOrPath)) { // passed a filesystem URL.
-      getEntry_(callback, dirEntryOrPath);
+      getEntry_(callback, opt_errorHandler, dirEntryOrPath);
     } else { // Passed a path. Look up DirectoryEntry and proceeed.
       // TODO: Find way to use getEntry_(callback, dirEntryOrPath); with cwd_.
       cwd_.getDirectory(dirEntryOrPath, {}, callback, opt_errorHandler);
@@ -533,14 +561,26 @@ var Filer = new function() {
       throw new Error(FS_INIT_ERROR_MSG);
     }
 
-    var exclusive = opt_exclusive != null ? opt_exclusive : false;
+    // juggle exclusive arg
+    if (typeof opt_exclusive === 'function'){
+      opt_errorHandler = opt_successCallback;
+      opt_successCallback = opt_exclusive;
+    }
 
+    var exclusive = typeof opt_exclusive === 'boolean' ? opt_exclusive : false;
+
+    var isAbsolute = path[0] === '/';
     var folderParts = path.split('/');
 
     var createDir = function(rootDir, folders) {
       // Throw out './' or '/' and move on. Prevents: '/foo/.//bar'.
-      if (folders[0] == '.' || folders[0] == '') {
-        folders = folders.slice(1);
+      folders = folders.filter(function(chunk){
+        return chunk !== '.' && chunk !== '';
+      });
+
+      if (!folders.length) {
+        if (opt_successCallback) opt_successCallback(rootDir);
+        return;
       }
 
       rootDir.getDirectory(folders[0], {create: true, exclusive: exclusive},
@@ -566,17 +606,22 @@ var Filer = new function() {
         function(e) {
           if (e.code == FileError.INVALID_MODIFICATION_ERR) {
             e.message = "'" + path + "' already exists";
-            if (opt_errorHandler) {
-              opt_errorHandler(e);
-            } else {
-              throw e;
-            }
+          }
+
+          if (opt_errorHandler) {
+            opt_errorHandler(e);
+          } else {
+            throw e;
           }
         }
       );
     };
 
-    createDir(cwd_, folderParts);
+    if (isAbsolute) {
+      createDir(fs_.root, folderParts);
+    } else {
+      createDir(cwd_, folderParts);
+    }
   };
 
   /**
@@ -597,7 +642,7 @@ var Filer = new function() {
     } else {
       getEntry_(function(fileEntry) {
         fileEntry.file(successCallback, opt_errorHandler);
-      }, pathToFsURL_(entryOrPath));
+      }, opt_errorHandler, pathToFsURL_(entryOrPath));
     }
   };
 
@@ -681,7 +726,7 @@ var Filer = new function() {
     if (entryOrPath.isFile || entryOrPath.isDirectory) {
       removeIt(entryOrPath);
     } else {
-      getEntry_(removeIt, entryOrPath);
+      getEntry_(removeIt, opt_errorHandler, entryOrPath);
     }
   };
 
@@ -720,7 +765,7 @@ var Filer = new function() {
             throw e;
           }
         }
-      }, dirEntryOrPath);
+      }, opt_errorHandler, dirEntryOrPath);
     }
   };
 
@@ -802,13 +847,13 @@ var Filer = new function() {
     if (entryOrPath.isFile) {
       writeFile_(entryOrPath);
     } else if (isFsURL_(entryOrPath)) {
-      getEntry_(writeFile_, entryOrPath);
+      getEntry_(writeFile_, opt_errorHandler, entryOrPath);
     } else {
       cwd_.getFile(entryOrPath, {create: true, exclusive: false}, writeFile_,
                    opt_errorHandler);
     }
   };
-  
+
   /**
    * Displays disk space usage.
    *
@@ -820,7 +865,7 @@ var Filer = new function() {
     var queryCallback = function(byteUsed, byteCap) {
       successCallback(byteUsed, byteCap - byteUsed, byteCap);
     }
-    
+
     if (!(navigator.temporaryStorage.queryUsageAndQuota && navigator.persistentStorage.queryUsageAndQuota)) {
       throw new Error(NOT_IMPLEMENTED_MSG);
     }
@@ -831,6 +876,8 @@ var Filer = new function() {
       navigator.persistentStorage.queryUsageAndQuota(queryCallback, opt_errorHandler);
     }
   };
-                                   
+
   return Filer;
 };
+
+Filer.Util = Util;
