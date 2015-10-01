@@ -42,6 +42,8 @@ Usage
 
 The underlying Filesystem API is asynchronous, therefore, the library calls are
 mostly asynchronous. This means you'll be passing callbacks all over the place.
+To help streamline the operations, however, this version has been modified to
+return Promises instead of accepting callbacks directly.
 
 First, create a `Filer` object:
 
@@ -50,27 +52,27 @@ First, create a `Filer` object:
 Next, initialize the library:
 
 ```javascript
-filer.init({persistent: false, size: 1024 * 1024}, function(fs) {
+filer.init({
+    persistent: false,
+    size: 1024 * 1024
+}).then(function(fs) {
   // filer.size == Filer.DEFAULT_FS_SIZE
   // filer.isOpen == true
   // filer.fs == fs
-}, onError);
+}).catch(onError);
 ```
 
 The first argument is an optional initialization object that can contain two
-properties, `persistent` (the type of storage to use) and `size`. The second and
-third arguments are a success and error callback, respectively:
+properties, `persistent` (the type of storage to use) and `size`.
 
-The success callback is passed a `LocalFileSystem` object. If you don't initialize
+Upon success, the Promise return a `LocalFileSystem` object. If you don't initialize
 the the filesystem with a size, a default size of `Filer.DEFAULT_FS_SIZE` (1MB)
 will be used. Thus, the previous call can be simplified to:
 
 ```javascript
-filer.init({}, function(fs) {
-  ...
-}, onError);
-
-filer.init(); // All parameters are optional.
+filer.init().then(function(fs) {
+  // ...
+}).catch(onError);
 ```
 
 **Error handling**
@@ -103,28 +105,28 @@ for. The second and third arguments, are success and error callbacks, respective
 
 ```javascript
 // Pass a path.
-filer.ls('/', function(entries) {
+filer.ls('/').then(function(entries) {
   // entries in the root directory.
-}, onError);
+}).catch(onError);
 
-filer.ls('.', function(entries) {
+filer.ls('.').then(function(entries) {
   // entries in the current working directory.
-}, onError);
+}).catch(onError);
 
-filer.ls('path/to/some/dir/', function(entries) {
+filer.ls('path/to/some/dir/').then(function(entries) {
   // entries in "path/to/some/dir/"
-}, onError);
+}).catch(onError);
 
 // Pass a filesystem: URL.
 var fsURL = filer.fs.root.toURL(); // e.g. 'filesystem:http://example.com/temporary/';
-filer.ls(fsURL, function(entries) {
+filer.ls(fsURL).then(function(entries) {
   // entries in the root folder.
-}, onError);
+}).catch(onError);
 
 // Pass a DirectorEntry.
-filer.ls(filer.fs.root, function(entries) {
+filer.ls(filer.fs.root).then(function(entries) {
   // entries in the root directory.
-}, onError);
+}).catch(onError);
 ```
 
 df()
@@ -136,9 +138,9 @@ The first and second arguments, are success and error callbacks. Used space, Fre
 
 ```javascript
 
-filer.df(function(used, free, cap) {
+filer.df().then(function(used, free, cap) {
   // used, free and capacity in bytes.
-}, onError);
+}).catch(onError);
 ```
 
 cd()
@@ -152,20 +154,20 @@ changed into.
 
 ```javascript
 // Passing a path.
-filer.cd('/path/to/folder', function(dirEntry) {
+filer.cd('/path/to/folder').then(function(dirEntry) {
   ...
-}, onError);
+}).catch(onError);
 
 // Passing a filesystem: URL.
 var fsURL = filer.fs.root.toURL(); // e.g. 'filesystem:http://example.com/temporary/';
-filer.cd(fsURL + 'myDir', function(dirEntry) {
+filer.cd(fsURL + 'myDir').then(function(dirEntry) {
   // cwd becomes /myDir.
-}, onError);
+}).catch(onError);
 
 // Passing a DirectoryEntry.
-filer.cd(dirEntry, function(dirEntry2) {
+filer.cd(dirEntry).then(function(dirEntry2) {
   // dirEntry == dirEntry2
-}, onError);
+}).catch(onError);
 
 filer.cd('/path/to/folder'); // Both callbacks are optional.
 ```
@@ -181,13 +183,13 @@ to write data to a file, see the `write()` method.
 **Important Note** : Directory path leading to the file must exist before calling create!
 
 ```javascript
-filer.create('myFile.txt', false, function(fileEntry) {
+filer.create('myFile.txt', false).then(function(fileEntry) {
   // fileEntry.name == 'myFile.txt'
-}, onError);
+}).catch(onError);
 
-filer.create('/path/to/some/dir/myFile.txt', true, function(fileEntry) {
+filer.create('/path/to/some/dir/myFile.txt', true).then(function(fileEntry) {
   // fileEntry.fullPath == '/path/to/some/dir/myFile.txt'
-}, onError);
+}).catch(onError);
 
 filer.create('myFile.txt'); // Last 3 args are optional.
 ```
@@ -201,10 +203,10 @@ mkdir()
 *Creates an empty directory.*
 
 ```javascript
-filer.mkdir('myFolder', false, function(dirEntry) {
+filer.mkdir('myFolder', false).then(function(dirEntry) {
   // dirEntry.isDirectory == true
   // dirEntry.name == 'myFolder'
-}, onError);
+}).catch(onError);
 ```
 
 You can pass `mkdir()` a folder name or a path to create. In the latter,
@@ -214,9 +216,9 @@ For example, the following would create a new hierarchy ("music/genres/jazz") in
 the current folder:
 
 ```javascript
-filer.mkdir('music/genres/jazz/', false, function(dirEntry) {
+filer.mkdir('music/genres/jazz/', false).then(function(dirEntry) {
   // dirEntry.name == 'jazz' // Note: dirEntry is the last entry created.
-}, onError);
+}).catch(onError);
 ```
 
 The second argument to `mkdir()` a boolean indicating whether or not an error
@@ -228,25 +230,25 @@ rm()
 
 *Removes a file or directory.*
 
-If you're removing a directory, it is removed recursively. 
+If you're removing a directory, it is removed recursively.
 
 ```javascript
-filer.rm('myFile.txt', function() {
-  ...
-}, onError);
+filer.rm('myFile.txt').then(function() {
+  // ...
+}).catch(onError);
 
-filer.rm('/path/to/some/someFile.txt', function() {
-  ...
-}, onError);
+filer.rm('/path/to/some/someFile.txt').then(function() {
+  // ...
+}).catch(onError);
 
 var fsURL = filer.pathToFilesystemURL('/path/to/some/directory');
-filer.rm(fsURL, function() {
-  ...
-}, onError);
+filer.rm(fsURL).then(function() {
+  // ...
+}).catch(onError);
 
-filer.rm(directorEntry, function() {
-  ...
-}, onError);
+filer.rm(directorEntry).then(function() {
+  // ...
+}).catch(onError);
 ```
 
 cp()
@@ -263,35 +265,35 @@ It must be a string path (or filesystem URL) as well.
 
 ```javascript
 // Pass string paths.
-filer.cp('myFile.txt', '/path/to/other/folder', null, function(entry) {
+filer.cp('myFile.txt', '/path/to/other/folder', null).then(function(entry) {
   // entry.fullPath == '/path/to/other/folder/myFile.txt'
-}, onError);
+}).catch(onError);
 
 // Pass filesystem URLs.
 var srcFsURL = 'filesystem:http://example.com/temporary/myDir';
 var destFsURL = 'filesystem:http://example.com/temporary/anotherDir';
-filer.cp(srcFsURL, destFsURL, null, function(entry) {
+filer.cp(srcFsURL, destFsURL, null).then(function(entry) {
   // filer.pathToFilesystemURL(entry.fullPath) == 'filesystem:http://example.com/temporary/anotherDir/myDir'
-}, onError);
+}).catch(onError);
 
 // Pass Entry objects.
-filer.cp(srcEntry, destinationFolderEntry, null, function(entry) {
-  ...
-}, onError);
+filer.cp(srcEntry, destinationFolderEntry, null).then(function(entry) {
+  // ...
+}).catch(onError);
 
 // Mixing string paths with filesystem URLs work too:
-filer.cp(srcEntry.toURL(), '/myDir', null, function(entry) {
-  ...
-}, onError);
+filer.cp(srcEntry.toURL(), '/myDir', null).then(function(entry) {
+  // ...
+}).catch(onError);
 ```
 
 If you wish to copy the entry under a new name, specify the third newName argument:
 
 ```javascript
 // Copy myFile.txt to myFile2.txt in the current directory.
-filer.cp('myFile.txt', '.', 'myFile2.txt', function(entry) {
+filer.cp('myFile.txt', '.', 'myFile2.txt').then(function(entry) {
   // entry.name == 'myFile2.txt'
-}, onError);
+}).catch(onError);
 ```
 
 mv()
@@ -305,20 +307,20 @@ when it is moved.
 
 ```javascript
 // Pass string paths.
-filer.mv('path/to/myfile.mp3', '/another/dir', null, function(fileEntry) {
+filer.mv('path/to/myfile.mp3', '/another/dir', null).then(function(fileEntry) {
   // fileEntry.fullPath == '/another/dir/myfile.mp3'
-}, onError);
+}).catch(onError);
 
 // Pass a filesystem URL. This example renames file.txt to somethingElse.txt in
 // the same directory.
-filer.mv('filesystem:http://example.com/temporary/file.txt', '.', 'somethingElse.txt', function(fileEntry) {
+filer.mv('filesystem:http://example.com/temporary/file.txt', '.', 'somethingElse.txt').then(function(fileEntry) {
   // fileEntry.fullPath == '/somethingElse.txt'
-}, onError);
+}).catch(onError);
 
 // Pass a FileEntry or DirectoryEntry.
-filer.mv(folderEntry, destDirEntry, function(dirEntry) {
+filer.mv(folderEntry, destDirEntry).then(function(dirEntry) {
   // folder is moved into destDirEntry
-}, onError);
+}).catch(onError);
 
 filer.mv('myFile.txt', './someDir'); // The new name and both callbacks are optional.
 
@@ -331,24 +333,24 @@ open()
 
 ```javascript
 // Pass a path.
-filer.open('myFile.txt', function(file) {
+filer.open('myFile.txt').then(function(file) {
   // Use FileReader to read file.
   var reader = new FileReader();
   reader.onload = function(e) {
-    ...
+    // ...
   }
   read.readAsArrayBuffer(file);
-}, onError);
+}).catch(onError);
 
 // Pass a filesystem URL.
-filer.open(fileEntry.toURL(), function(file) {
-  ...
-}, onError);
+filer.open(fileEntry.toURL()).then(function(file) {
+  // ...
+}).catch(onError);
 
 // Pass a FileEntry.
-filer.open(fileEntry, function(file) {
-  ...
-}, onError);
+filer.open(fileEntry).then(function(file) {
+  // ...
+}).catch(onError);
 ```
 
 write()
@@ -372,45 +374,46 @@ was written to and the `FileWriter` object used to do the writing.
 // Write files from a file input.
 document.querySelector('input[type="file"]').onchange = function(e) {
   var file = e.target.files[0];
-  filer.write(file.name, {data: file, type: file.type}, function(fileEntry, fileWriter) {
-    ...
-  }, onError);
+  filer.write(file.name, {
+      data: file,
+      type: file.type
+  }).then(function(fileEntry, fileWriter) {
+    // ...
+  }).catch(onError);
 };
 
 // Create a Blob and write it out.
 var bb = new BlobBuilder();
 bb.append('body { background: red; }');
-filer.write('styles.css', {data: bb.getBlob('text/css'), type: 'text/css'},
-  function(fileEntry, fileWriter) {
-    ...
-  },
-  onError
-);
+filer.write('styles.css', {
+    data: bb.getBlob('text/css'),
+    type: 'text/css'
+}).then(function(fileEntry, fileWriter) {
+    // ...
+}).catch(onError);
 
 // Create a typed array and write the ArrayBuffer.
 var uint8 = new Uint8Array([1,2,3,4,5]);
-filer.write(fileEntry, {data: uint8.buffer},
-  function(fileEntry, fileWriter) {
-    ...
-  },
-  onError
-);
+filer.write(fileEntry, {data: uint8.buffer}).then(function(fileEntry, fileWriter) {
+    // ...
+}).catch(onError);
 
 // Write string data.
-filer.write('path/to/file.txt', {data: '1234567890', type: 'text/plain'},
-  function(fileEntry, fileWriter) {
-    ...
-  },
-  onError
-);
+filer.write('path/to/file.txt', {
+    data: '1234567890',
+    type: 'text/plain'
+}).then(function(fileEntry, fileWriter) {
+    // ...
+}).catch(onError);
 
 // Append to a file.
-filer.write('path/to/file.txt', {data: '1234567890', type: 'text/plain', append: true},
-  function(fileEntry, fileWriter) {
-    ...
-  },
-  onError
-);
+filer.write('path/to/file.txt', {
+    data: '1234567890',
+    type: 'text/plain',
+    append: true
+}).then(function(fileEntry, fileWriter) {
+    // ...
+}).catch(onError);
 ```
 
 Utility methods
@@ -422,13 +425,13 @@ The library contains a few utility methods to help you out.
 Util.fileToObjectURL(Blob|File);
 
 Util.fileToArrayBuffer(blob, function(arrayBuffer) {
-  ...
+  // ...
 });
 
 var blob = Util.arrayBufferToBlob((new Uint8Array(10)).buffer, opt_contentType);
 
 Util.arrayBufferToBinaryString((new Uint8Array(10)).buffer, function(binStr) {
-  ...
+  // ...
 });
 
 Util.strToObjectURL(binaryStr, opt_contentType);
