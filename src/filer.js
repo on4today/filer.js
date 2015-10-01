@@ -23,8 +23,7 @@
 
  'use strict';
 
- (function() {
-    var self = {}; // Make filer self contained
+ (function(self) {
 
     var reqFS = window.requestFileSystem || window.webkitRequestFileSystem;
 
@@ -253,10 +252,10 @@
 
     // Extend FileError with custom errors and a convenience method to get error
     // code mnemonic.
-    FileError.BROWSER_NOT_SUPPORTED = 1000;
+    self.FileError.BROWSER_NOT_SUPPORTED = 1000;
 
     // TODO: remove when FileError.name is implemented (crbug.com/86014).
-    FileError.prototype.__defineGetter__('name', function() {
+    self.FileError.prototype.__defineGetter__('name', function() {
       var keys = Object.keys(FileError);
       for (var i = 0, key; key = keys[i]; ++i) {
         if (FileError[key] == this.code) {
@@ -450,46 +449,47 @@
        *      DOMFileSystem object.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.init = function(opt_initObj, opt_successCallback,
-                                      opt_errorHandler) {
-        if (!self.requestFileSystem) {
-          throw new MyFileError({
-            code: FileError.BROWSER_NOT_SUPPORTED,
-            name: 'BROWSER_NOT_SUPPORTED'
-          });
-        }
+      Filer.prototype.init = function(opt_initObj) {
+        return new Promise(_.bind(function(opt_successCallback, opt_errorHandler) {
+            if (!self.requestFileSystem) {
+              throw new MyFileError({
+                code: FileError.BROWSER_NOT_SUPPORTED,
+                name: 'BROWSER_NOT_SUPPORTED'
+              });
+            }
 
-        if (fs_) {
-          if (opt_successCallback) opt_successCallback(fs_);
-          return;
-        }
+            if (fs_) {
+              if (opt_successCallback) opt_successCallback(fs_);
+              return;
+            }
 
-        var initObj = opt_initObj ? opt_initObj : {}; // Use defaults if obj is null.
+            var initObj = opt_initObj ? opt_initObj : {}; // Use defaults if obj is null.
 
-        var size = initObj.size || DEFAULT_FS_SIZE;
-        this.type = self.TEMPORARY;
-        if ('persistent' in initObj && initObj.persistent) {
-          this.type = self.PERSISTENT;
-        }
+            var size = initObj.size || DEFAULT_FS_SIZE;
+            this.type = self.TEMPORARY;
+            if ('persistent' in initObj && initObj.persistent) {
+              this.type = self.PERSISTENT;
+            }
 
-        var init = function(fs) {
-          this.size = size;
-          fs_ = fs;
-          cwd_ = fs_.root;
-          isOpen_ = true;
+            var init = function(fs) {
+              this.size = size;
+              fs_ = fs;
+              cwd_ = fs_.root;
+              isOpen_ = true;
 
-          opt_successCallback && opt_successCallback(fs);
-        };
+              opt_successCallback && opt_successCallback(fs);
+            };
 
-        if (this.type == self.PERSISTENT && !!navigator.persistentStorage) {
-          navigator.persistentStorage.requestQuota(size, function(grantedBytes) {
-            self.requestFileSystem(
-                this.type, grantedBytes, init.bind(this), opt_errorHandler);
-          }.bind(this), opt_errorHandler);
-        } else {
-          self.requestFileSystem(
-              this.type, size, init.bind(this), opt_errorHandler);
-        }
+            if (this.type == self.PERSISTENT && !!navigator.persistentStorage) {
+              navigator.persistentStorage.requestQuota(size, function(grantedBytes) {
+                self.requestFileSystem(
+                    this.type, grantedBytes, init.bind(this), opt_errorHandler);
+              }.bind(this), opt_errorHandler);
+            } else {
+              self.requestFileSystem(
+                  this.type, size, init.bind(this), opt_errorHandler);
+            }
+        }, this));
       };
 
       /**
@@ -502,46 +502,47 @@
        * @param {Function} successCallback Success handler passed an Array<Entry>.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.ls = function(dirEntryOrPath, successCallback,
-                                    opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
+      Filer.prototype.ls = function(dirEntryOrPath) {
+        return new Promise(function(successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
+            }
 
-        var callback = function(dirEntry) {
+            var callback = function(dirEntry) {
 
-          // Read contents of current working directory. According to spec, need to
-          // keep calling readEntries() until length of result array is 0. We're
-          // guarenteed the same entry won't be returned again.
-          var entries_ = [];
-          var reader = dirEntry.createReader();
+              // Read contents of current working directory. According to spec, need to
+              // keep calling readEntries() until length of result array is 0. We're
+              // guarenteed the same entry won't be returned again.
+              var entries_ = [];
+              var reader = dirEntry.createReader();
 
-          var readEntries = function() {
-            reader.readEntries(function(results) {
-              if (!results.length) {
-                // By default, sort the list by name.
-                entries_.sort(function(a, b) {
-                  return a.name < b.name ? -1 : b.name < a.name ? 1 : 0;
-                });
-                successCallback(entries_);
-              } else {
-                entries_ = entries_.concat(Util.toArray(results));
-                readEntries();
-              }
-            }, opt_errorHandler);
-          };
+              var readEntries = function() {
+                reader.readEntries(function(results) {
+                  if (!results.length) {
+                    // By default, sort the list by name.
+                    entries_.sort(function(a, b) {
+                      return a.name < b.name ? -1 : b.name < a.name ? 1 : 0;
+                    });
+                    successCallback(entries_);
+                  } else {
+                    entries_ = entries_.concat(Util.toArray(results));
+                    readEntries();
+                  }
+                }, opt_errorHandler);
+              };
 
-          readEntries();
-        };
+              readEntries();
+            };
 
-        if (dirEntryOrPath.isDirectory) { // passed a DirectoryEntry.
-          callback(dirEntryOrPath);
-        } else if (isFsURL_(dirEntryOrPath)) { // passed a filesystem URL.
-          getEntry_(callback, opt_errorHandler, dirEntryOrPath);
-        } else { // Passed a path. Look up DirectoryEntry and proceeed.
-          // TODO: Find way to use getEntry_(callback, dirEntryOrPath); with cwd_.
-          cwd_.getDirectory(dirEntryOrPath, {}, callback, opt_errorHandler);
-        }
+            if (dirEntryOrPath.isDirectory) { // passed a DirectoryEntry.
+              callback(dirEntryOrPath);
+            } else if (isFsURL_(dirEntryOrPath)) { // passed a filesystem URL.
+              getEntry_(callback, opt_errorHandler, dirEntryOrPath);
+            } else { // Passed a path. Look up DirectoryEntry and proceeed.
+              // TODO: Find way to use getEntry_(callback, dirEntryOrPath); with cwd_.
+              cwd_.getDirectory(dirEntryOrPath, {}, callback, opt_errorHandler);
+            }
+        });
       };
 
       /**
@@ -556,73 +557,74 @@
        *     directory that was created is passed back.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.mkdir = function(path, opt_exclusive, opt_successCallback,
-                                       opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
-
-        // juggle exclusive arg
-        if (typeof opt_exclusive === 'function'){
-          opt_errorHandler = opt_successCallback;
-          opt_successCallback = opt_exclusive;
-        }
-
-        var exclusive = typeof opt_exclusive === 'boolean' ? opt_exclusive : false;
-
-        var isAbsolute = path[0] === '/';
-        var folderParts = path.split('/');
-
-        var createDir = function(rootDir, folders) {
-          // Throw out './' or '/' and move on. Prevents: '/foo/.//bar'.
-          folders = folders.filter(function(chunk){
-            return chunk !== '.' && chunk !== '';
-          });
-
-          if (!folders.length) {
-            if (opt_successCallback) opt_successCallback(rootDir);
-            return;
-          }
-
-          rootDir.getDirectory(folders[0], {create: true, exclusive: exclusive},
-            function (dirEntry) {
-              if (dirEntry.isDirectory) { // TODO: check shouldn't be necessary.
-                // Recursively add the new subfolder if we have more to create and
-                // There was more than one folder to create.
-                if (folders.length && folderParts.length != 1) {
-                  createDir(dirEntry, folders.slice(1));
-                } else {
-                  // Return the last directory that was created.
-                  if (opt_successCallback) opt_successCallback(dirEntry);
-                }
-              } else {
-                var e = new Error(path + ' is not a directory');
-                if (opt_errorHandler) {
-                  opt_errorHandler(e);
-                } else {
-                  throw e;
-                }
-              }
-            },
-            function(e) {
-              if (e.code == FileError.INVALID_MODIFICATION_ERR) {
-                e.message = "'" + path + "' already exists";
-              }
-
-              if (opt_errorHandler) {
-                opt_errorHandler(e);
-              } else {
-                throw e;
-              }
+      Filer.prototype.mkdir = function(path, opt_exclusive) {
+        return new Promise(function(opt_successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
             }
-          );
-        };
 
-        if (isAbsolute) {
-          createDir(fs_.root, folderParts);
-        } else {
-          createDir(cwd_, folderParts);
-        }
+            // juggle exclusive arg
+            if (typeof opt_exclusive === 'function'){
+              opt_errorHandler = opt_successCallback;
+              opt_successCallback = opt_exclusive;
+            }
+
+            var exclusive = typeof opt_exclusive === 'boolean' ? opt_exclusive : false;
+
+            var isAbsolute = path[0] === '/';
+            var folderParts = path.split('/');
+
+            var createDir = function(rootDir, folders) {
+              // Throw out './' or '/' and move on. Prevents: '/foo/.//bar'.
+              folders = folders.filter(function(chunk){
+                return chunk !== '.' && chunk !== '';
+              });
+
+              if (!folders.length) {
+                if (opt_successCallback) opt_successCallback(rootDir);
+                return;
+              }
+
+              rootDir.getDirectory(folders[0], {create: true, exclusive: exclusive},
+                function (dirEntry) {
+                  if (dirEntry.isDirectory) { // TODO: check shouldn't be necessary.
+                    // Recursively add the new subfolder if we have more to create and
+                    // There was more than one folder to create.
+                    if (folders.length && folderParts.length != 1) {
+                      createDir(dirEntry, folders.slice(1));
+                    } else {
+                      // Return the last directory that was created.
+                      if (opt_successCallback) opt_successCallback(dirEntry);
+                    }
+                  } else {
+                    var e = new Error(path + ' is not a directory');
+                    if (opt_errorHandler) {
+                      opt_errorHandler(e);
+                    } else {
+                      throw e;
+                    }
+                  }
+                },
+                function(e) {
+                  if (e.code == FileError.INVALID_MODIFICATION_ERR) {
+                    e.message = "'" + path + "' already exists";
+                  }
+
+                  if (opt_errorHandler) {
+                    opt_errorHandler(e);
+                  } else {
+                    throw e;
+                  }
+                }
+              );
+            };
+
+            if (isAbsolute) {
+              createDir(fs_.root, folderParts);
+            } else {
+              createDir(cwd_, folderParts);
+            }
+        });
       };
 
       /**
@@ -633,18 +635,20 @@
        * @param {Function} successCallback Success callback passed the File object.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.open = function(entryOrPath, successCallback, opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
+      Filer.prototype.open = function(entryOrPath) {
+        return new Promise(function(successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
+            }
 
-        if (entryOrPath.isFile) {
-          entryOrPath.file(successCallback, opt_errorHandler);
-        } else {
-          getEntry_(function(fileEntry) {
-            fileEntry.file(successCallback, opt_errorHandler);
-          }, opt_errorHandler, pathToFsURL_(entryOrPath));
-        }
+            if (entryOrPath.isFile) {
+              entryOrPath.file(successCallback, opt_errorHandler);
+            } else {
+              getEntry_(function(fileEntry) {
+                fileEntry.file(successCallback, opt_errorHandler);
+              }, opt_errorHandler, pathToFsURL_(entryOrPath));
+            }
+        });
       };
 
       /**
@@ -658,26 +662,27 @@
        *     the new FileEntry.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.create = function(path, opt_exclusive, successCallback,
-                                        opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
-
-        var exclusive = opt_exclusive != null ? opt_exclusive : true;
-
-        cwd_.getFile(path, {create: true,  exclusive: exclusive}, successCallback,
-          function(e) {
-            if (e.code == FileError.INVALID_MODIFICATION_ERR) {
-              e.message = "'" + path + "' already exists";
+      Filer.prototype.create = function(path, opt_exclusive) {
+        return new Promise(function(successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
             }
-            if (opt_errorHandler) {
-              opt_errorHandler(e);
-            } else {
-              throw e;
-            }
-          }
-        );
+
+            var exclusive = opt_exclusive != null ? opt_exclusive : true;
+
+            cwd_.getFile(path, {create: true,  exclusive: exclusive}, successCallback,
+              function(e) {
+                if (e.code == FileError.INVALID_MODIFICATION_ERR) {
+                  e.message = "'" + path + "' already exists";
+                }
+                if (opt_errorHandler) {
+                  opt_errorHandler(e);
+                } else {
+                  throw e;
+                }
+              }
+            );
+        });
       };
 
       /**
@@ -693,10 +698,11 @@
         *     entry on a successful move.
         * @param {Function=} opt_errorHandler Optional error callback.
         */
-      Filer.prototype.mv = function(src, dest, opt_newName, opt_successCallback,
-                                    opt_errorHandler) {
-        copyOrMove_.bind(this, src, dest, opt_newName, opt_successCallback,
-                         opt_errorHandler, true)();
+      Filer.prototype.mv = function(src, dest, opt_newName) {
+        return new Promise(function(opt_successCallback, opt_errorHandler) {
+            copyOrMove_.bind(this, src, dest, opt_newName, opt_successCallback,
+                             opt_errorHandler, true)();
+        });
       };
 
       /**
@@ -710,25 +716,26 @@
        *     successful removal.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.rm = function(entryOrPath, successCallback,
-                                    opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
+      Filer.prototype.rm = function(entryOrPath) {
+        return new Promise(function(successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
+            }
 
-        var removeIt = function(entry) {
-          if (entry.isFile) {
-            entry.remove(successCallback, opt_errorHandler);
-          } else if (entry.isDirectory) {
-            entry.removeRecursively(successCallback, opt_errorHandler);
-          }
-        };
+            var removeIt = function(entry) {
+              if (entry.isFile) {
+                entry.remove(successCallback, opt_errorHandler);
+              } else if (entry.isDirectory) {
+                entry.removeRecursively(successCallback, opt_errorHandler);
+              }
+            };
 
-        if (entryOrPath.isFile || entryOrPath.isDirectory) {
-          removeIt(entryOrPath);
-        } else {
-          getEntry_(removeIt, opt_errorHandler, entryOrPath);
-        }
+            if (entryOrPath.isFile || entryOrPath.isDirectory) {
+              removeIt(entryOrPath);
+            } else {
+              getEntry_(removeIt, opt_errorHandler, entryOrPath);
+            }
+        });
       };
 
       /**
@@ -741,33 +748,34 @@
        *     passed the DirectoryEntry of the new current directory.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.cd = function(dirEntryOrPath, opt_successCallback,
-                                    opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
+      Filer.prototype.cd = function(dirEntryOrPath) {
+        return new Promise(function(opt_successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
+            }
 
-        if (dirEntryOrPath.isDirectory) {
-          cwd_ = dirEntryOrPath;
-          opt_successCallback && opt_successCallback(cwd_);
-        } else {
-          // Build a filesystem: URL manually if we need to.
-          var dirEntryOrPath = pathToFsURL_(dirEntryOrPath);
-
-          getEntry_(function(dirEntry) {
-            if (dirEntry.isDirectory) {
-              cwd_ = dirEntry;
+            if (dirEntryOrPath.isDirectory) {
+              cwd_ = dirEntryOrPath;
               opt_successCallback && opt_successCallback(cwd_);
             } else {
-              var e = new Error(NOT_A_DIRECTORY);
-              if (opt_errorHandler) {
-                opt_errorHandler(e);
-              } else {
-                throw e;
-              }
+              // Build a filesystem: URL manually if we need to.
+              var dirEntryOrPath = pathToFsURL_(dirEntryOrPath);
+
+              getEntry_(function(dirEntry) {
+                if (dirEntry.isDirectory) {
+                  cwd_ = dirEntry;
+                  opt_successCallback && opt_successCallback(cwd_);
+                } else {
+                  var e = new Error(NOT_A_DIRECTORY);
+                  if (opt_errorHandler) {
+                    opt_errorHandler(e);
+                  } else {
+                    throw e;
+                  }
+                }
+              }, opt_errorHandler, dirEntryOrPath);
             }
-          }, opt_errorHandler, dirEntryOrPath);
-        }
+        });
       };
 
       /**
@@ -783,10 +791,11 @@
         *     entry on a successful copy.
         * @param {Function=} opt_errorHandler Optional error callback.
         */
-      Filer.prototype.cp = function(src, dest, opt_newName, opt_successCallback,
-                                    opt_errorHandler) {
-        copyOrMove_.bind(this, src, dest, opt_newName, opt_successCallback,
+      Filer.prototype.cp = function(src, dest, opt_newName) {
+        return new Promise(function(opt_successCallback, opt_errorHandler) {
+            copyOrMove_.bind(this, src, dest, opt_newName, opt_successCallback,
                          opt_errorHandler)();
+        });
       };
 
       /**
@@ -803,56 +812,57 @@
        *     the created FileEntry and FileWriter object used to write the data.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.write = function(entryOrPath, dataObj, opt_successCallback,
-                                       opt_errorHandler) {
-        if (!fs_) {
-          throw new Error(FS_INIT_ERROR_MSG);
-        }
+      Filer.prototype.write = function(entryOrPath, dataObj) {
+        return new Promise(function(opt_successCallback, opt_errorHandler) {
+            if (!fs_) {
+              throw new Error(FS_INIT_ERROR_MSG);
+            }
 
-        var writeFile_ = function(fileEntry) {
-          fileEntry.createWriter(function(fileWriter) {
+            var writeFile_ = function(fileEntry) {
+              fileEntry.createWriter(function(fileWriter) {
 
-            fileWriter.onerror = opt_errorHandler;
+                fileWriter.onerror = opt_errorHandler;
 
-            if (dataObj.append) {
-              fileWriter.onwriteend = function(e) {
-                if (opt_successCallback) opt_successCallback(fileEntry, this);
-              };
+                if (dataObj.append) {
+                  fileWriter.onwriteend = function(e) {
+                    if (opt_successCallback) opt_successCallback(fileEntry, this);
+                  };
 
-              fileWriter.seek(fileWriter.length); // Start write position at EOF.
-            } else {
-              var truncated = false;
-              fileWriter.onwriteend = function(e) {
-                // Truncate file to newly written file size.
-                if (!truncated) {
-                  truncated = true;
-                  this.truncate(this.position);
-                  return;
+                  fileWriter.seek(fileWriter.length); // Start write position at EOF.
+                } else {
+                  var truncated = false;
+                  fileWriter.onwriteend = function(e) {
+                    // Truncate file to newly written file size.
+                    if (!truncated) {
+                      truncated = true;
+                      this.truncate(this.position);
+                      return;
+                    }
+                    if (opt_successCallback) opt_successCallback(fileEntry, this);
+                  };
                 }
-                if (opt_successCallback) opt_successCallback(fileEntry, this);
-              };
+
+                // Blob() takes ArrayBufferView, not ArrayBuffer.
+                if (dataObj.data.__proto__ == ArrayBuffer.prototype) {
+                  dataObj.data = new Uint8Array(dataObj.data);
+                }
+                var blob = new Blob([dataObj.data],
+                                    dataObj.type ? {type: dataObj.type} : {});
+
+                fileWriter.write(blob);
+
+              }, opt_errorHandler);
+            };
+
+            if (entryOrPath.isFile) {
+              writeFile_(entryOrPath);
+            } else if (isFsURL_(entryOrPath)) {
+              getEntry_(writeFile_, opt_errorHandler, entryOrPath);
+            } else {
+              cwd_.getFile(entryOrPath, {create: true, exclusive: false}, writeFile_,
+                           opt_errorHandler);
             }
-
-            // Blob() takes ArrayBufferView, not ArrayBuffer.
-            if (dataObj.data.__proto__ == ArrayBuffer.prototype) {
-              dataObj.data = new Uint8Array(dataObj.data);
-            }
-            var blob = new Blob([dataObj.data],
-                                dataObj.type ? {type: dataObj.type} : {});
-
-            fileWriter.write(blob);
-
-          }, opt_errorHandler);
-        };
-
-        if (entryOrPath.isFile) {
-          writeFile_(entryOrPath);
-        } else if (isFsURL_(entryOrPath)) {
-          getEntry_(writeFile_, opt_errorHandler, entryOrPath);
-        } else {
-          cwd_.getFile(entryOrPath, {create: true, exclusive: false}, writeFile_,
-                       opt_errorHandler);
-        }
+        });
       };
 
       /**
@@ -862,20 +872,22 @@
        *     Used space, Free space and Currently allocated total space in bytes.
        * @param {Function=} opt_errorHandler Optional error callback.
        */
-      Filer.prototype.df = function(successCallback, opt_errorHandler) {
-        var queryCallback = function(byteUsed, byteCap) {
-          successCallback(byteUsed, byteCap - byteUsed, byteCap);
-        }
+      Filer.prototype.df = function() {
+        return new Promise(function(successCallback, opt_errorHandler) {
+            var queryCallback = function(byteUsed, byteCap) {
+              successCallback(byteUsed, byteCap - byteUsed, byteCap);
+            }
 
-        if (!(navigator.temporaryStorage.queryUsageAndQuota && navigator.persistentStorage.queryUsageAndQuota)) {
-          throw new Error(NOT_IMPLEMENTED_MSG);
-        }
+            if (!(navigator.temporaryStorage.queryUsageAndQuota && navigator.persistentStorage.queryUsageAndQuota)) {
+              throw new Error(NOT_IMPLEMENTED_MSG);
+            }
 
-        if (self.TEMPORARY == this.type) {
-          navigator.temporaryStorage.queryUsageAndQuota(queryCallback, opt_errorHandler);
-        } else if (self.PERSISTENT == this.type) {
-          navigator.persistentStorage.queryUsageAndQuota(queryCallback, opt_errorHandler);
-        }
+            if (self.TEMPORARY == this.type) {
+              navigator.temporaryStorage.queryUsageAndQuota(queryCallback, opt_errorHandler);
+            } else if (self.PERSISTENT == this.type) {
+              navigator.persistentStorage.queryUsageAndQuota(queryCallback, opt_errorHandler);
+            }
+        });
       };
 
       return Filer;
@@ -884,5 +896,5 @@
     Filer.Util = Util;
 
     // export Filer object
-    window.Filer = window.Filer || Filer;
-})();
+    self.Filer = self.Filer || Filer;
+})(this);
