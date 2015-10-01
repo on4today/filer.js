@@ -450,7 +450,7 @@
        * @param {Function=} opt_errorHandler Optional error callback.
        */
       Filer.prototype.init = function(opt_initObj) {
-        return new Promise(_.bind(function(opt_successCallback, opt_errorHandler) {
+        return new Promise(function(opt_successCallback, opt_errorHandler) {
             if (!self.requestFileSystem) {
               throw new MyFileError({
                 code: FileError.BROWSER_NOT_SUPPORTED,
@@ -489,7 +489,7 @@
               self.requestFileSystem(
                   this.type, size, init.bind(this), opt_errorHandler);
             }
-        }, this));
+        }.bind(this));
       };
 
       /**
